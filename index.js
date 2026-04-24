@@ -6,13 +6,16 @@ const qrcode = require('qrcode-terminal')
 const express = require('express')
 const fs = require('fs')
 
-if (fs.existsSync('./sessions')) {
-    fs.rmSync('./sessions', { recursive: true, force: true })
-    console.log(">>> SESSION LAMA DIHAPUS")
-}
-
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions')
+
+    // CEK UDAH LOGIN APA BELUM. KALO BELUM & ADA FOLDER SESSIONS = HAPUS
+    if (!state.creds.registered && fs.existsSync('./sessions')) {
+        fs.rmSync('./sessions', { recursive: true, force: true })
+        console.log(">>> SESSION INVALID DIHAPUS - QR BAKAL MUNCUL")
+        return connectToWhatsApp() // RESTART BUAT BIKIN SESSION BARU
+    }
+
     const sock = makeWASocket({
         logger: pino({ level: 'fatal' }),
         auth: state,
@@ -31,17 +34,26 @@ async function connectToWhatsApp() {
         }
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode
-            console.log('>>> KONEKSI PUTUS. Reason:', reason)
-            if (reason!== DisconnectReason.loggedOut) {
+            console.log('>>> KONEKSI PUTUS. Code:', reason)
+
+            // HANDLE 405 KHUSUS
+            if (reason === 405) {
+                console.log('>>> ERROR 405: SESSION BENTROK. HAPUS MANUAL...')
+                if (fs.existsSync('./sessions')) {
+                    fs.rmSync('./sessions', { recursive: true, force: true })
+                }
+                setTimeout(connectToWhatsApp, 5000)
+            } else if (reason!== DisconnectReason.loggedOut) {
                 console.log('>>> RECONNECT DALAM 3 DETIK...')
                 setTimeout(connectToWhatsApp, 3000)
             } else {
-                console.log('>>> LOGOUT. HAPUS SESSION MANUAL BUAT LOGIN LAGI')
+                console.log('>>> LOGOUT. SCAN QR LAGI BUAT LOGIN')
             }
         } else if (connection === 'open') {
             console.log('>>> BOT BERHASIL NYAMBUNG KE WHATSAPP <<<')
         }
     })
+
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0]
         if (!msg.message || msg.key.fromMe) return
