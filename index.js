@@ -26,3 +26,9 @@ async function start() {
     })
 }
 start()
+// Web server dummy biar Render Free gak error
+const express = require('express')
+const app = express()
+app.get('/', (req, res) => res.send('Bot WA Aktif 24 Jam'))
+const PORT = process.env.PORT || 3000
+app.listen(PORT, () => console.log(`Server jalan di port ${PORT}`))
