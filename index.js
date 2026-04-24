@@ -7,7 +7,7 @@ async function start() {
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         auth: state,
-        printQRInTerminal: false,
+        printQRInTerminal: true,
         browser: ['Mac OS', 'Chrome', '110.0.0']
     })
 
