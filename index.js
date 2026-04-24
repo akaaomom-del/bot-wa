@@ -7,14 +7,15 @@ const express = require('express')
 const fs = require('fs')
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('sessions')
-
-    // CEK UDAH LOGIN APA BELUM. KALO BELUM & ADA FOLDER SESSIONS = HAPUS
-    if (!state.creds.registered && fs.existsSync('./sessions')) {
+    // HAPUS SESSION KALO ADA TAPI INVALID
+    const { state: checkState } = await useMultiFileAuthState('sessions')
+    if (!checkState.creds.registered && fs.existsSync('./sessions')) {
         fs.rmSync('./sessions', { recursive: true, force: true })
         console.log(">>> SESSION INVALID DIHAPUS - QR BAKAL MUNCUL")
-        return connectToWhatsApp() // RESTART BUAT BIKIN SESSION BARU
     }
+
+    // BIKIN STATE BARU SETELAH DIHAPUS
+    const { state, saveCreds } = await useMultiFileAuthState('sessions')
 
     const sock = makeWASocket({
         logger: pino({ level: 'fatal' }),
@@ -36,16 +37,16 @@ async function connectToWhatsApp() {
             const reason = lastDisconnect?.error?.output?.statusCode
             console.log('>>> KONEKSI PUTUS. Code:', reason)
 
-            // HANDLE 405 KHUSUS
             if (reason === 405) {
                 console.log('>>> ERROR 405: SESSION BENTROK. HAPUS MANUAL...')
                 if (fs.existsSync('./sessions')) {
                     fs.rmSync('./sessions', { recursive: true, force: true })
                 }
+            }
+
+            if (reason!== DisconnectReason.loggedOut) {
+                console.log('>>> RECONNECT DALAM 5 DETIK...')
                 setTimeout(connectToWhatsApp, 5000)
-            } else if (reason!== DisconnectReason.loggedOut) {
-                console.log('>>> RECONNECT DALAM 3 DETIK...')
-                setTimeout(connectToWhatsApp, 3000)
             } else {
                 console.log('>>> LOGOUT. SCAN QR LAGI BUAT LOGIN')
             }
