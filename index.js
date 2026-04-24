@@ -1,34 +1,37 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys')
 const pino = require('pino')
 const qrcode = require('qrcode-terminal')
+const express = require('express')
 
 async function start() {
-    const { state, saveCreds } = await useMultiFileAuthState('session')
+    const { state, saveCreds } = await useMultiFileAuthState('sessions')
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         auth: state,
-        printQRInTerminal: true,
-        browser: ['Mac OS', 'Chrome', '110.0.0']
+        browser: ['Chrome (Linux)', '', '']
     })
 
     sock.ev.on('creds.update', saveCreds)
-    sock.ev.on('connection.update', (u) => {
-        const { connection, lastDisconnect, qr } = u
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update
         if(qr) {
-            console.clear()
-            console.log('SCAN QR DIBAWAH INI PAKE WA NOMOR 6285881910311:')
+            console.log('SCAN QR DIBAWAH INI PAKAI WHATSAPP')
             qrcode.generate(qr, {small: true})
         }
-        if(connection === 'open') console.log('BOT UDAH NYAMBUNG BRO!')
         if(connection === 'close') {
-            if(lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) start()
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
+            if(shouldReconnect) start()
+        } else if(connection === 'open') {
+            console.log('Bot nyambung bro!')
         }
     })
 }
-start()
+
 // Web server dummy biar Render Free gak error
-const express = require('express')
 const app = express()
-app.get('/', (req, res) => res.send('Bot WA Aktif 24 Jam'))
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`Server jalan di port ${PORT}`))
+const port = process.env.PORT || 10000
+app.get('/', (req, res) => res.send('Bot WA Running!'))
+app.listen(port, () => {
+    console.log('Server jalan di port', port)
+    start() // Panggil bot setelah server nyala
+})
